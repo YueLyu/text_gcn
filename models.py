@@ -206,7 +206,7 @@ class GCN(Model):
         d = tf.random_normal(shape=(self.input_dim, FLAGS.hidden1))
 
         for _ in range(FLAGS.vat_num_power_iterations):
-            d = _scale_l2(_mask_by_length(d, self.input_dim), FLAGS.vat_random_eps) # normalization
+            d = _scale_l2(d, FLAGS.vat_random_eps) # normalization
             logit_p = logit
             logit_m = self.layers[1](h1 + d)
             dist = kl_divergence_with_logit(logit_p, logit_m)
@@ -222,15 +222,6 @@ class GCN(Model):
         logit_m = self.layers[1](h1 + r_vadv)
         loss = kl_divergence_with_logit(logit_p, logit_m)
         return loss
-
-
-def _mask_by_length(t, length):
-    """Mask t, 3-D [batch, time, dim], by length, 1-D [batch,]."""
-
-    # Subtract 1 from length to prevent the perturbation from going on 'eos'
-    mask = tf.sequence_mask(length)
-    mask = tf.expand_dims(tf.cast(mask, tf.float32), -1)
-    return t * mask
 
 def logsoftmax(x):
     xdev = x - tf.reduce_max(x, 1, keepdims=True)
