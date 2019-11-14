@@ -52,6 +52,11 @@ flags.DEFINE_float('perturb_norm_length', 3.0,
 flags.DEFINE_bool('adversarial_loss', True, 'Add adversarial loss')
 flags.DEFINE_float('adv_reg_coeff', 1.0,
                    'Regularization coefficient of adversarial loss.')
+
+flags.DEFINE_bool('vat_loss', True, 'Add virtual adversarial loss')            
+flags.DEFINE_float('vat_adv_eps', 1.0, "norm length for (virtual) adversarial training ")
+flags.DEFINE_integer('vat_num_power_iterations', 1, "the number of power iterations")
+flags.DEFINE_float('vat_random_eps', 1e-6, "small constant for finite difference")
 # Load data
 adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask, train_size, test_size = load_corpus(
     FLAGS.dataset)

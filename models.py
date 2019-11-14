@@ -7,10 +7,6 @@ from utils import _scale_l2
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
-tf.app.flags.DEFINE_float('epsilon', 8.0, "norm length for (virtual) adversarial training ")
-tf.app.flags.DEFINE_integer('num_power_iterations', 1, "the number of power iterations")
-tf.app.flags.DEFINE_float('xi', 1e-6, "small constant for finite difference")
-
 
 class Model(object):
     def __init__(self, **kwargs):
@@ -163,7 +159,8 @@ class GCN(Model):
         # if FLAGS.adversarial_loss:
         #     self.loss += self._adversarial_loss() * tf.constant(FLAGS.adv_reg_coeff)
 
-        self.loss += self.virtual_adversarial_loss(self.layers[0].embedding, self.outputs)
+        if FLAGS.vat_loss:
+            self.loss += self.virtual_adversarial_loss(self.layers[0].embedding, self.outputs)
 
     def _adversarial_loss(self):
         """Adds gradient to embedding and recomputes classification loss."""
@@ -208,15 +205,15 @@ class GCN(Model):
     def generate_virtual_adversarial_perturbation(self, h1, logit):
         d = tf.random_normal(shape=(self.input_dim, FLAGS.hidden1))
 
-        for _ in range(FLAGS.num_power_iterations):
-            d = _scale_l2(_mask_by_length(d, self.input_dim), FLAGS.xi) # normalization
+        for _ in range(FLAGS.vat_num_power_iterations):
+            d = _scale_l2(_mask_by_length(d, self.input_dim), FLAGS.vat_random_eps) # normalization
             logit_p = logit
             logit_m = self.layers[1](h1 + d)
             dist = kl_divergence_with_logit(logit_p, logit_m)
             grad = tf.gradients(dist, d, aggregation_method=2)[0]
             d = tf.stop_gradient(grad)
 
-        return FLAGS.epsilon * _scale_l2(d, 3.0)
+        return FLAGS.vat_adv_eps * _scale_l2(d, 3.0)
 
     def virtual_adversarial_loss(self, h1, logit):
         logit = tf.stop_gradient(logit)
