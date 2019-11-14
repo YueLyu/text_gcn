@@ -7,6 +7,10 @@ from utils import _scale_l2
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
+tf.app.flags.DEFINE_float('epsilon', 8.0, "norm length for (virtual) adversarial training ")
+tf.app.flags.DEFINE_integer('num_power_iterations', 1, "the number of power iterations")
+tf.app.flags.DEFINE_float('xi', 1e-6, "small constant for finite difference")
+
 
 class Model(object):
     def __init__(self, **kwargs):
@@ -154,10 +158,12 @@ class GCN(Model):
         # Cross entropy error
         self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'],
                                                   self.placeholders['labels_mask'])
-        print("output: " + str(self.outputs))
-        print("embedding: " + str(self.layers[0].embedding))
-        if FLAGS.adversarial_loss:
-            self.loss += self._adversarial_loss() * tf.constant(FLAGS.adv_reg_coeff)
+        # print("output: " + str(self.outputs))
+        # print("embedding: " + str(self.layers[0].embedding))
+        # if FLAGS.adversarial_loss:
+        #     self.loss += self._adversarial_loss() * tf.constant(FLAGS.adv_reg_coeff)
+
+        self.loss += self.virtual_adversarial_loss(self.layers[0].embedding, self.outputs)
 
     def _adversarial_loss(self):
         """Adds gradient to embedding and recomputes classification loss."""
@@ -198,3 +204,44 @@ class GCN(Model):
 
     def predict(self):
         return tf.nn.softmax(self.outputs)
+
+    def generate_virtual_adversarial_perturbation(self, h1, logit):
+        d = tf.random_normal(shape=(self.input_dim, FLAGS.hidden1))
+
+        for _ in range(FLAGS.num_power_iterations):
+            d = _scale_l2(_mask_by_length(d, self.input_dim), FLAGS.xi) # normalization
+            logit_p = logit
+            logit_m = self.layers[1](h1 + d)
+            dist = kl_divergence_with_logit(logit_p, logit_m)
+            grad = tf.gradients(dist, d, aggregation_method=2)[0]
+            d = tf.stop_gradient(grad)
+
+        return FLAGS.epsilon * _scale_l2(d, 3.0)
+
+    def virtual_adversarial_loss(self, h1, logit):
+        logit = tf.stop_gradient(logit)
+        r_vadv = self.generate_virtual_adversarial_perturbation(h1, logit)
+        logit_p = logit
+        logit_m = self.layers[1](h1 + r_vadv)
+        loss = kl_divergence_with_logit(logit_p, logit_m)
+        return loss
+
+
+def _mask_by_length(t, length):
+    """Mask t, 3-D [batch, time, dim], by length, 1-D [batch,]."""
+
+    # Subtract 1 from length to prevent the perturbation from going on 'eos'
+    mask = tf.sequence_mask(length)
+    mask = tf.expand_dims(tf.cast(mask, tf.float32), -1)
+    return t * mask
+
+def logsoftmax(x):
+    xdev = x - tf.reduce_max(x, 1, keepdims=True)
+    lsm = xdev - tf.log(tf.reduce_sum(tf.exp(xdev), 1, keepdims=True))
+    return lsm
+
+def kl_divergence_with_logit(q_logit, p_logit):
+    q = tf.nn.softmax(q_logit)
+    qlogq = tf.reduce_mean(tf.reduce_sum(q * logsoftmax(q_logit), 1))
+    qlogp = tf.reduce_mean(tf.reduce_sum(q * logsoftmax(p_logit), 1))
+    return qlogq - qlogp
