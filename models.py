@@ -160,7 +160,7 @@ class GCN(Model):
         #     self.loss += self._adversarial_loss() * tf.constant(FLAGS.adv_reg_coeff)
 
         if FLAGS.vat_loss:
-            self.loss += self.virtual_adversarial_loss(self.layers[0].embedding, self.outputs)
+            self.loss += self.virtual_adversarial_loss(self.inputs, self.outputs)
 
     def _adversarial_loss(self):
         """Adds gradient to embedding and recomputes classification loss."""
@@ -202,31 +202,50 @@ class GCN(Model):
     def predict(self):
         return tf.nn.softmax(self.outputs)
 
-    def generate_virtual_adversarial_perturbation(self, h1, logit):
-        d = tf.random_normal(shape=(self.input_dim, FLAGS.hidden1))
+    def generate_virtual_adversarial_perturbation(self, input, logit):
+        # d = tf.random_normal(shape=(self.input_dim, FLAGS.hidden1))
+
+        # for _ in range(FLAGS.vat_num_power_iterations):
+        #     d = _scale_l2(d, FLAGS.vat_random_eps) # normalization
+        #     logit_p = logit
+        #     logit_m = self.layers[1](h1 + d)
+        #     dist = kl_divergence_with_logit(logit_p, logit_m)
+        #     grad = tf.gradients(dist, d, aggregation_method=2)[0]
+        #     d = tf.stop_gradient(grad)
+
+        # return FLAGS.vat_adv_eps * _scale_l2(d, 3.0)
+
+        d = tf.random_normal(shape=(self.input_dim, self.input_dim))
 
         for _ in range(FLAGS.vat_num_power_iterations):
             d = _scale_l2(d, FLAGS.vat_random_eps) # normalization
             logit_p = logit
-            logit_m = self.layers[1](h1 + d)
+            self.layers[0].support[0] += d
+            logit_m = self.layers[1](self.layers[0](input))
             dist = kl_divergence_with_logit(logit_p, logit_m)
-            grad = tf.gradients(dist, d, aggregation_method=2)[0]
+            grad = tf.gradients(dist, self.layers[0].support[0], aggregation_method=2)[0]
             d = tf.stop_gradient(grad)
+            self.layers[0].support[0] -= d
 
-        return FLAGS.vat_adv_eps * _scale_l2(d, 3.0)
+        return _scale_l2(d, FLAGS.vat_adv_eps)
 
-    def virtual_adversarial_loss(self, h1, logit):
+    def virtual_adversarial_loss(self, input, logit):
         logit = tf.stop_gradient(logit)
-        r_vadv = self.generate_virtual_adversarial_perturbation(h1, logit)
+        r_vadv = self.generate_virtual_adversarial_perturbation(input, logit)
         logit_p = logit
-        logit_m = self.layers[1](h1 + r_vadv)
+        self.layers[0].support[0] += r_vadv
+        logit_m = self.layers[1](self.layers[0](input))
         loss = kl_divergence_with_logit(logit_p, logit_m)
+        self.layers[0].support[0] -= r_vadv
         return loss
+
+
 
 def logsoftmax(x):
     xdev = x - tf.reduce_max(x, 1, keepdims=True)
     lsm = xdev - tf.log(tf.reduce_sum(tf.exp(xdev), 1, keepdims=True))
     return lsm
+
 
 def kl_divergence_with_logit(q_logit, p_logit):
     q = tf.nn.softmax(q_logit)

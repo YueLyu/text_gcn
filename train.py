@@ -11,11 +11,12 @@ import random
 import os
 import sys
 
-if len(sys.argv) != 2:
-	sys.exit("Use: python train.py <dataset>")
+# if len(sys.argv) != 2:
+# 	sys.exit("Use: python train.py <dataset>")
 
 datasets = ['20ng', 'R8', 'R52', 'ohsumed', 'mr']
-dataset = sys.argv[1]
+# dataset = sys.argv[1]
+dataset = 'R8'
 
 if dataset not in datasets:
 	sys.exit("wrong dataset name")
@@ -54,7 +55,7 @@ flags.DEFINE_float('adv_reg_coeff', 1.0,
                    'Regularization coefficient of adversarial loss.')
 
 flags.DEFINE_bool('vat_loss', True, 'Add virtual adversarial loss')            
-flags.DEFINE_float('vat_adv_eps', 1.0, "norm length for (virtual) adversarial training ")
+flags.DEFINE_float('vat_adv_eps', 1e-6, "norm length for (virtual) adversarial training ")
 flags.DEFINE_integer('vat_num_power_iterations', 1, "the number of power iterations")
 flags.DEFINE_float('vat_random_eps', 1e-6, "small constant for finite difference")
 # Load data
@@ -86,7 +87,7 @@ else:
 
 # Define placeholders
 placeholders = {
-    'support': [tf.sparse_placeholder(tf.float32) for _ in range(num_supports)],
+    'support': [tf.placeholder(tf.float32, shape=(None, features[2][1]), name='support_'+str(_)) for _ in range(num_supports)],
     'features': tf.sparse_placeholder(tf.float32, shape=tf.constant(features[2], dtype=tf.int64)),
     'labels': tf.placeholder(tf.float32, shape=(None, y_train.shape[1])),
     'labels_mask': tf.placeholder(tf.int32),
@@ -94,6 +95,7 @@ placeholders = {
     # helper variable for sparse dropout
     'num_features_nonzero': tf.placeholder(tf.int32)
 }
+
 
 # Create model
 print(features[2][1])
@@ -123,6 +125,7 @@ for epoch in range(FLAGS.epochs):
 
     t = time.time()
     # Construct feed dictionary
+    placeholders['support'][0] = tf.get_default_graph().get_tensor_by_name('support_0:0')
     feed_dict = construct_feed_dict(
         features, support, y_train, train_mask, placeholders)
     feed_dict.update({placeholders['dropout']: FLAGS.dropout})

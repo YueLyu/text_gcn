@@ -177,7 +177,7 @@ class GraphConvolution(Layer):
                               sparse=self.sparse_inputs)
             else:
                 pre_sup = self.vars['weights_' + str(i)]
-            support = dot(self.support[i], pre_sup, sparse=True)
+            support = dot(self.support[i], pre_sup, sparse=False)
             supports.append(support)
         output = tf.add_n(supports)
 
