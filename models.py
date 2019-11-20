@@ -154,24 +154,23 @@ class GCN(Model):
         # Cross entropy error
         self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'],
                                                   self.placeholders['labels_mask'])
-        # print("output: " + str(self.outputs))
-        # print("embedding: " + str(self.layers[0].embedding))
-        # if FLAGS.adversarial_loss:
-        #     self.loss += self._adversarial_loss() * tf.constant(FLAGS.adv_reg_coeff)
+        if FLAGS.adversarial_loss:
+            self.loss += self._adversarial_loss() * tf.constant(FLAGS.adv_reg_coeff)
 
         if FLAGS.vat_loss:
             self.loss += self.virtual_adversarial_loss(self.inputs, self.outputs)
 
     def _adversarial_loss(self):
-        """Adds gradient to embedding and recomputes classification loss."""
+        """Adds gradient to adjacency and recomputes classification loss."""
         grad, = tf.gradients(
             self.loss,
-            self.layers[0].embedding,
+            self.layers[0].support[0],
             aggregation_method=tf.AggregationMethod.EXPERIMENTAL_ACCUMULATE_N)
         grad = tf.stop_gradient(grad)
-        print("embedding: " + str(grad))
         perturb = _scale_l2(grad, FLAGS.perturb_norm_length)
-        output = self.layers[1](self.layers[0].embedding + perturb)
+        self.layers[0].support[0] += perturb
+        output = self.layers[1](self.layers[0](self.inputs))
+        self.layers[0].support[0] -= perturb
         return masked_softmax_cross_entropy(output, self.placeholders['labels'],
                                             self.placeholders['labels_mask'])
 

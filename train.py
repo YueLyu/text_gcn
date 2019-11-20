@@ -46,15 +46,14 @@ flags.DEFINE_integer('early_stopping', 150,
                      'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_integer('max_degree', 3, 'Maximum Chebyshev polynomial degree.')
 # Adversarial training parameters.
-flags.DEFINE_float('perturb_norm_length', 3.0,
+flags.DEFINE_float('perturb_norm_length', 1e-5,
                    'Norm length of adversarial perturbation to be '
-                   'optimized with validation. '
-                   '5.0 is optimal on IMDB with virtual adversarial training. ')
+                   'optimized with validation. ')
 flags.DEFINE_bool('adversarial_loss', True, 'Add adversarial loss')
 flags.DEFINE_float('adv_reg_coeff', 1.0,
                    'Regularization coefficient of adversarial loss.')
 
-flags.DEFINE_bool('vat_loss', True, 'Add virtual adversarial loss')            
+flags.DEFINE_bool('vat_loss', False, 'Add virtual adversarial loss')
 flags.DEFINE_float('vat_adv_eps', 1e-6, "norm length for (virtual) adversarial training ")
 flags.DEFINE_integer('vat_num_power_iterations', 1, "the number of power iterations")
 flags.DEFINE_float('vat_random_eps', 1e-6, "small constant for finite difference")
