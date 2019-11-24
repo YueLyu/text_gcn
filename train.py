@@ -16,7 +16,7 @@ import sys
 
 datasets = ['20ng', 'R8', 'R52', 'ohsumed', 'mr']
 # dataset = sys.argv[1]
-dataset = 'R8'
+dataset = 'mr'
 
 if dataset not in datasets:
 	sys.exit("wrong dataset name")
@@ -37,7 +37,7 @@ flags.DEFINE_string('dataset', dataset, 'Dataset string.')
 # 'gcn', 'gcn_cheby', 'dense'
 flags.DEFINE_string('model', 'gcn', 'Model string.')
 flags.DEFINE_float('learning_rate', 0.02, 'Initial learning rate.')
-flags.DEFINE_integer('epochs', 200, 'Number of epochs to train.')
+flags.DEFINE_integer('epochs', 2000, 'Number of epochs to train.')
 flags.DEFINE_integer('hidden1', 200, 'Number of units in hidden layer 1.')
 flags.DEFINE_float('dropout', 0.5, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('weight_decay', 0,
@@ -55,9 +55,9 @@ flags.DEFINE_float('adv_reg_coeff', 1.0,
                    'Regularization coefficient of adversarial loss.')
 
 flags.DEFINE_bool('vat_loss', True, 'Add virtual adversarial loss')            
-flags.DEFINE_float('vat_adv_eps', 1e-6, "norm length for (virtual) adversarial training ")
+flags.DEFINE_float('vat_adv_eps', 1e-5, "norm length for (virtual) adversarial training ")
 flags.DEFINE_integer('vat_num_power_iterations', 1, "the number of power iterations")
-flags.DEFINE_float('vat_random_eps', 1e-6, "small constant for finite difference")
+flags.DEFINE_float('vat_random_eps', 1e-5, "small constant for generating random perturbations")
 # Load data
 adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask, train_size, test_size = load_corpus(
     FLAGS.dataset)

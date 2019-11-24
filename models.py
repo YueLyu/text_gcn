@@ -203,17 +203,6 @@ class GCN(Model):
         return tf.nn.softmax(self.outputs)
 
     def generate_virtual_adversarial_perturbation(self, input, logit):
-        # d = tf.random_normal(shape=(self.input_dim, FLAGS.hidden1))
-
-        # for _ in range(FLAGS.vat_num_power_iterations):
-        #     d = _scale_l2(d, FLAGS.vat_random_eps) # normalization
-        #     logit_p = logit
-        #     logit_m = self.layers[1](h1 + d)
-        #     dist = kl_divergence_with_logit(logit_p, logit_m)
-        #     grad = tf.gradients(dist, d, aggregation_method=2)[0]
-        #     d = tf.stop_gradient(grad)
-
-        # return FLAGS.vat_adv_eps * _scale_l2(d, 3.0)
 
         d = tf.random_normal(shape=(self.input_dim, self.input_dim))
 
@@ -222,7 +211,7 @@ class GCN(Model):
             logit_p = logit
             self.layers[0].support[0] += d
             logit_m = self.layers[1](self.layers[0](input))
-            dist = kl_divergence_with_logit(logit_p, logit_m)
+            dist = kl_divergence_with_logit(logit_p, logit_m, self.placeholders['labels_mask'])
             grad = tf.gradients(dist, self.layers[0].support[0], aggregation_method=2)[0]
             d = tf.stop_gradient(grad)
             self.layers[0].support[0] -= d
@@ -235,10 +224,9 @@ class GCN(Model):
         logit_p = logit
         self.layers[0].support[0] += r_vadv
         logit_m = self.layers[1](self.layers[0](input))
-        loss = kl_divergence_with_logit(logit_p, logit_m)
+        loss = kl_divergence_with_logit(logit_p, logit_m, self.placeholders['labels_mask'])
         self.layers[0].support[0] -= r_vadv
         return loss
-
 
 
 def logsoftmax(x):
@@ -247,8 +235,9 @@ def logsoftmax(x):
     return lsm
 
 
-def kl_divergence_with_logit(q_logit, p_logit):
+def kl_divergence_with_logit(q_logit, p_logit, mask):
+    mask = tf.cast(mask, dtype=tf.float32)
     q = tf.nn.softmax(q_logit)
-    qlogq = tf.reduce_mean(tf.reduce_sum(q * logsoftmax(q_logit), 1))
-    qlogp = tf.reduce_mean(tf.reduce_sum(q * logsoftmax(p_logit), 1))
+    qlogq = tf.reduce_mean(tf.reduce_sum(q * logsoftmax(q_logit), 1) * mask)
+    qlogp = tf.reduce_mean(tf.reduce_sum(q * logsoftmax(p_logit), 1) * mask)
     return qlogq - qlogp
