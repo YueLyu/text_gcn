@@ -46,8 +46,14 @@ flags.DEFINE_integer('early_stopping', 10,
 flags.DEFINE_integer('max_degree', 3, 'Maximum Chebyshev polynomial degree.')
 
 # Load data
-adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask, train_size, test_size = load_corpus(
+adj, features, y_train, y_val, y_test, train_seen_mask, train_unseen_mask, val_seen_mask, val_unseen_mask, test_seen_mask, test_unseen_mask, train_size, test_size = load_corpus(
     FLAGS.dataset)
+print("features:")
+#print(features)
+print(features.shape)
+print("y train:")
+#print(y_train)
+print(y_train.shape)
 print(adj)
 # print(adj[0], adj[1])
 features = sp.identity(features.shape[0])  # featureless
@@ -77,7 +83,8 @@ placeholders = {
     'support': [tf.sparse_placeholder(tf.float32) for _ in range(num_supports)],
     'features': tf.sparse_placeholder(tf.float32, shape=tf.constant(features[2], dtype=tf.int64)),
     'labels': tf.placeholder(tf.float32, shape=(None, y_train.shape[1])),
-    'labels_mask': tf.placeholder(tf.int32),
+    'labels_seen_mask': tf.placeholder(tf.int32),
+    'labels_unseen_mask': tf.placeholder(tf.int32),
     'dropout': tf.placeholder_with_default(0., shape=()),
     # helper variable for sparse dropout
     'num_features_nonzero': tf.placeholder(tf.int32)
@@ -93,10 +100,10 @@ sess = tf.Session(config=session_conf)
 
 
 # Define model evaluation function
-def evaluate(features, support, labels, mask, placeholders):
+def evaluate(features, support, labels, seen_mask, unseen_mask, placeholders):
     t_test = time.time()
     feed_dict_val = construct_feed_dict(
-        features, support, labels, mask, placeholders)
+        features, support, labels, seen_mask, unseen_mask, placeholders)
     outs_val = sess.run([model.loss, model.accuracy, model.pred, model.labels], feed_dict=feed_dict_val)
     return outs_val[0], outs_val[1], outs_val[2], outs_val[3], (time.time() - t_test)
 
@@ -112,7 +119,7 @@ for epoch in range(FLAGS.epochs):
     t = time.time()
     # Construct feed dictionary
     feed_dict = construct_feed_dict(
-        features, support, y_train, train_mask, placeholders)
+        features, support, y_train, train_seen_mask, train_unseen_mask, placeholders)
     feed_dict.update({placeholders['dropout']: FLAGS.dropout})
 
     # Training step
@@ -121,9 +128,11 @@ for epoch in range(FLAGS.epochs):
 
     # Validation
     cost, acc, pred, labels, duration = evaluate(
-        features, support, y_val, val_mask, placeholders)
+        features, support, y_val, val_seen_mask, val_unseen_mask, placeholders)
     cost_val.append(cost)
 
+    #print(outs[1].size())
+    #print(outs)
     print("Epoch:", '%04d' % (epoch + 1), "train_loss=", "{:.5f}".format(outs[1]),
           "train_acc=", "{:.5f}".format(
               outs[2]), "val_loss=", "{:.5f}".format(cost),
@@ -137,15 +146,15 @@ print("Optimization Finished!")
 
 # Testing
 test_cost, test_acc, pred, labels, test_duration = evaluate(
-    features, support, y_test, test_mask, placeholders)
+    features, support, y_test, test_seen_mask, test_unseen_mask, placeholders)
 print("Test set results:", "cost=", "{:.5f}".format(test_cost),
       "accuracy=", "{:.5f}".format(test_acc), "time=", "{:.5f}".format(test_duration))
 
 test_pred = []
 test_labels = []
-print(len(test_mask))
-for i in range(len(test_mask)):
-    if test_mask[i]:
+#print(len(test_mask))
+for i in range(len(test_seen_mask)):
+    if test_seen_mask[i]:
         test_pred.append(pred[i])
         test_labels.append(labels[i])
 

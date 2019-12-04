@@ -148,8 +148,9 @@ def load_corpus(dataset_str):
     print(x.shape, y.shape, tx.shape, ty.shape, allx.shape, ally.shape)
 
     features = sp.vstack((allx, tx)).tolil()
+    print("features: ", features.shape)
     labels = np.vstack((ally, ty))
-    print(len(labels))
+    print("labels: ", len(labels))
 
     train_idx_orig = parse_index_file(
         "data/{}.train.index".format(dataset_str))
@@ -158,24 +159,33 @@ def load_corpus(dataset_str):
     val_size = train_size - x.shape[0]
     test_size = tx.shape[0]
 
-    idx_train = range(len(y))
+    idx_train_seen = range((int)(len(y) * 0.5))
+    idx_train_unseen = range((int)(len(y) * 0.5), len(y))
+    print("train seen mask length: ", idx_train_seen)
+    print("train unseen mask length: ", idx_train_unseen)
     idx_val = range(len(y), len(y) + val_size)
+    print("val mask length: ", idx_val)
     idx_test = range(allx.shape[0], allx.shape[0] + test_size)
+    print("test mask length: ", idx_test)
 
-    train_mask = sample_mask(idx_train, labels.shape[0])
-    val_mask = sample_mask(idx_val, labels.shape[0])
-    test_mask = sample_mask(idx_test, labels.shape[0])
+    train_seen_mask = sample_mask(idx_train_seen, labels.shape[0])
+    train_unseen_mask = sample_mask(idx_train_unseen, labels.shape[0])
+    val_seen_mask = sample_mask(idx_val, labels.shape[0])
+    test_seen_mask = sample_mask(idx_test, labels.shape[0])
+
+    val_unseen_mask = np.array(np.zeros(labels.shape[0]), dtype=np.bool)
+    test_unseen_mask = np.array(np.zeros(labels.shape[0]), dtype=np.bool)
 
     y_train = np.zeros(labels.shape)
     y_val = np.zeros(labels.shape)
     y_test = np.zeros(labels.shape)
-    y_train[train_mask, :] = labels[train_mask, :]
-    y_val[val_mask, :] = labels[val_mask, :]
-    y_test[test_mask, :] = labels[test_mask, :]
+    y_train[train_seen_mask, :] = labels[train_seen_mask, :]
+    y_val[val_seen_mask, :] = labels[val_seen_mask, :]
+    y_test[test_seen_mask, :] = labels[test_seen_mask, :]
 
     adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
 
-    return adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask, train_size, test_size
+    return adj, features, y_train, y_val, y_test, train_seen_mask, train_unseen_mask, val_seen_mask, val_unseen_mask, test_seen_mask, test_unseen_mask, train_size, test_size
 
 
 def sparse_to_tuple(sparse_mx):
@@ -223,11 +233,12 @@ def preprocess_adj(adj):
     return sparse_to_tuple(adj_normalized)
 
 
-def construct_feed_dict(features, support, labels, labels_mask, placeholders):
+def construct_feed_dict(features, support, labels, labels_seen_mask, labels_unseen_mask, placeholders):
     """Construct feed dictionary."""
     feed_dict = dict()
     feed_dict.update({placeholders['labels']: labels})
-    feed_dict.update({placeholders['labels_mask']: labels_mask})
+    feed_dict.update({placeholders['labels_seen_mask']: labels_seen_mask})
+    feed_dict.update({placeholders['labels_unseen_mask']: labels_unseen_mask})
     feed_dict.update({placeholders['features']: features})
     feed_dict.update({placeholders['support'][i]: support[i]
                       for i in range(len(support))})

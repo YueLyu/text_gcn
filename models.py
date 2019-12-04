@@ -151,11 +151,28 @@ class GCN(Model):
 
         # Cross entropy error
         self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'],
-                                                  self.placeholders['labels_mask'])
+                                                  self.placeholders['labels_seen_mask'])
+        
+        if tf.reduce_mean(self.placeholders['labels_unseen_mask']) != 0:
+            self.loss += self.em_loss()
+        
+    
+    def em_loss(self):
+        #l = tf.reduce_sum(
+                #tf.nn.softmax_cross_entropy_with_logits(labels = tf.nn.softmax(self.outputs), logits = self.outputs))
+        #loss = 0
+        #for i in l:
+            #loss += i
+        #print(self.outputs)
+        #print(self.placeholders['labels_mask'])
+        #print(self.placeholders['labels'])
+        l = masked_softmax_cross_entropy(self.outputs, tf.nn.softmax(self.outputs),
+                                                  self.placeholders['labels_unseen_mask'])
+        return l
 
     def _accuracy(self):
         self.accuracy = masked_accuracy(self.outputs, self.placeholders['labels'],
-                                        self.placeholders['labels_mask'])
+                                        self.placeholders['labels_seen_mask'])
         self.pred = tf.argmax(self.outputs, 1)
         self.labels = tf.argmax(self.placeholders['labels'], 1)
 
